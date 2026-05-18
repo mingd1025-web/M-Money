@@ -499,7 +499,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt)
 'use strict';
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc }
   from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
@@ -699,6 +699,17 @@ function startRealtimeListener() {
    AUTH
    ========================================================= */
 function setupAuthListener() {
+  /* 리디렉션 로그인 결과 처리 (PWA 모드) */
+  getRedirectResult(fbAuth).then(function(result) {
+    if(result && result.user) {
+      /* 리디렉션 후 돌아온 경우 — onAuthStateChanged가 처리함 */
+    }
+  }).catch(function(e) {
+    if(e.code !== 'auth/popup-closed-by-user') {
+      showToast('로그인 오류: ' + (e.message || e.code));
+    }
+  });
+
   onAuthStateChanged(fbAuth, function(user) {
     currentUser = user;
     if(user) {
@@ -740,6 +751,11 @@ function showLoginScreen() {
   setSyncStatus('ok','');
 }
 
+function isPWA() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
 async function doGoogleLogin() {
   if(!isFirebaseMode) {
     showToast('Firebase 설정을 먼저 해주세요 (⚙️ 버튼)');
@@ -747,7 +763,11 @@ async function doGoogleLogin() {
   }
   try {
     var provider = new GoogleAuthProvider();
-    await signInWithPopup(fbAuth, provider);
+    if(isPWA()) {
+      await signInWithRedirect(fbAuth, provider);
+    } else {
+      await signInWithPopup(fbAuth, provider);
+    }
   } catch(e) {
     if(e.code !== 'auth/popup-closed-by-user') {
       showToast('로그인 실패: ' + (e.message || e.code));
