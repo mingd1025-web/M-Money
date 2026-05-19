@@ -513,6 +513,16 @@ var currentUser = null;
 var isFirebaseMode = false;
 
 function getSavedCfg() {
+  /* 코드에 직접 내장된 Firebase 설정 (최우선) */
+  var BUILT_IN_CFG = {
+    apiKey:            'AIzaSyBgwd_nq9J8k5B6wyWTiIv3vlJV7mTYq5c',
+    authDomain:        'm-money-7e285.firebaseapp.com',
+    projectId:         'm-money-7e285',
+    storageBucket:     'm-money-7e285.firebasestorage.app',
+    messagingSenderId: '531781259827',
+    appId:             '1:531781259827:web:7a54469bae9eb2686e8946'
+  };
+  if(BUILT_IN_CFG.apiKey && BUILT_IN_CFG.projectId) return BUILT_IN_CFG;
   try { return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch(e) { return null; }
 }
 function saveCfg(cfg) {
@@ -763,11 +773,8 @@ async function doGoogleLogin() {
   }
   try {
     var provider = new GoogleAuthProvider();
-    if(isPWA()) {
-      await signInWithRedirect(fbAuth, provider);
-    } else {
-      await signInWithPopup(fbAuth, provider);
-    }
+    /* 아이폰 Safari PWA 포함 모든 환경에서 리디렉션 방식 사용 */
+    await signInWithRedirect(fbAuth, provider);
   } catch(e) {
     if(e.code !== 'auth/popup-closed-by-user') {
       showToast('로그인 실패: ' + (e.message || e.code));
