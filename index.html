@@ -1312,7 +1312,42 @@ function renderSettings(){
         '</div>'+
       '</div>';
     });
-    fixHtml+='<div class="fix-total"><span class="fix-total-lbl">월 총 고정항목</span><span class="fix-total-val">'+fmt(fixTotal)+'</span></div>';
+
+    /* 합계 계산 */
+    var fixIncTotal = fixedList.filter(function(f){return f.type==='income';}).reduce(function(s,f){return s+f.amount;},0);
+    var fixExpList  = fixedList.filter(function(f){return f.type==='expense'||!f.type;});
+    var fixExpTotal = fixExpList.reduce(function(s,f){return s+f.amount;},0);
+    var fixSavTotal = fixedList.filter(function(f){return f.type==='saving';}).reduce(function(s,f){return s+f.amount;},0);
+    var fixRepTotal = fixedList.filter(function(f){return f.type==='repay';}).reduce(function(s,f){return s+f.amount;},0);
+
+    /* 고정지출 카테고리별 합계 */
+    var expCatMap={};
+    fixExpList.forEach(function(f){var c=f.category||'기타';expCatMap[c]=(expCatMap[c]||0)+f.amount;});
+    var expCatRows=Object.entries(expCatMap).sort(function(a,b){return b[1]-a[1];}).map(function(e){
+      var cc=CATCOLOR[e[0]]||'#6B7280';
+      var cb=CATBG[e[0]]||'#F3F4F6';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 16px;border-bottom:1px solid var(--bdr)">'+
+        '<span class="tbadge" style="background:'+cb+';color:'+cc+'">'+esc(e[0])+'</span>'+
+        '<span style="font-size:13px;font-weight:700;color:var(--exp)">'+fmt(e[1])+'</span>'+
+      '</div>';
+    }).join('');
+
+    fixHtml+=
+      /* 고정지출 카테고리별 합계 */
+      (expCatRows ?
+        '<div style="background:#FFF5F5;border-top:2px solid var(--bdr)">'+
+          '<div style="padding:8px 16px 4px;font-size:10px;font-weight:700;color:var(--exp);letter-spacing:.05em">고정지출 카테고리별</div>'+
+          expCatRows+
+        '</div>'
+      : '') +
+      /* 합계 요약 */
+      '<div style="border-top:2px solid var(--bdr)">'+
+        (fixIncTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128176; 고정수입 합계</span><span class="fix-total-val" style="color:var(--inc)">+'+fmt(fixIncTotal)+'</span></div>' : '')+
+        (fixExpTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128248; 고정지출 합계</span><span class="fix-total-val" style="color:var(--exp)">-'+fmt(fixExpTotal)+'</span></div>' : '')+
+        (fixSavTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128150; 고정저축 합계</span><span class="fix-total-val" style="color:var(--sav)">'+fmt(fixSavTotal)+'</span></div>' : '')+
+        (fixRepTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128197; 고정상환 합계</span><span class="fix-total-val" style="color:var(--rep)">-'+fmt(fixRepTotal)+'</span></div>' : '')+
+        '<div class="fix-total"><span class="fix-total-lbl" style="font-weight:700">월 순고정지출</span><span class="fix-total-val" style="color:'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'var(--inc)':'var(--exp)')+'">'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'+':'')+fmt(fixIncTotal-fixExpTotal-fixRepTotal)+'</span></div>'+
+      '</div>';
   }
   fixHtml+='</div>';
 
