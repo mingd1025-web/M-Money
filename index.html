@@ -1346,7 +1346,7 @@ function renderSettings(){
         (fixExpTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128248; 고정지출 합계</span><span class="fix-total-val" style="color:var(--exp)">-'+fmt(fixExpTotal)+'</span></div>' : '')+
         (fixSavTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128150; 고정저축 합계</span><span class="fix-total-val" style="color:var(--sav)">'+fmt(fixSavTotal)+'</span></div>' : '')+
         (fixRepTotal ? '<div class="fix-total" style="border-bottom:1px solid var(--bdr)"><span class="fix-total-lbl">&#128197; 고정상환 합계</span><span class="fix-total-val" style="color:var(--rep)">-'+fmt(fixRepTotal)+'</span></div>' : '')+
-        '<div class="fix-total"><span class="fix-total-lbl" style="font-weight:700">월 순고정지출</span><span class="fix-total-val" style="color:'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'var(--inc)':'var(--exp)')+'">'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'+':'')+fmt(fixIncTotal-fixExpTotal-fixRepTotal)+'</span></div>'+
+        '<div class="fix-total"><span class="fix-total-lbl" style="font-weight:700">월 고정 순수익</span><span class="fix-total-val" style="color:'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'var(--inc)':'var(--exp)')+'">'+(fixIncTotal-fixExpTotal-fixRepTotal>=0?'+':'')+fmt(fixIncTotal-fixExpTotal-fixRepTotal)+'</span></div>'+
       '</div>';
   }
   fixHtml+='</div>';
