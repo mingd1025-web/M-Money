@@ -575,14 +575,14 @@ var fixedList = [];
 var debtTotal = 0;
 
 var CATCOLOR = {
-  '고정지출':'#0284C7','유동지출':'#EA580C','기타지출':'#6B7280','차량유지비':'#CA8A04',
+  '고정지출':'#0284C7','유동지출':'#EA580C','기타지출':'#D97706','차량유지비':'#CA8A04',
   '급여':'#059669','부수입':'#0D9488','용돈':'#7C3AED',
   '저축/투자':'#4F46E5',
   '주택담보대출':'#BE185D','신용대출':'#9D174D','자동차할부':'#BE185D',
   '카드대금':'#BE185D','기타대출':'#BE185D'
 };
 var CATBG = {
-  '고정지출':'#E0F2FE','유동지출':'#FFF7ED','기타지출':'#F3F4F6','차량유지비':'#FEFCE8',
+  '고정지출':'#E0F2FE','유동지출':'#FFF7ED','기타지출':'#FFFBEB','차량유지비':'#FEFCE8',
   '급여':'#ECFDF5','부수입':'#F0FDFA','용돈':'#F5F3FF',
   '저축/투자':'#EEF2FF',
   '주택담보대출':'#FCE7F3','신용대출':'#FCE7F3','자동차할부':'#FCE7F3',
@@ -952,7 +952,7 @@ function renderPieDash(){
   pieChart=new Chart(document.getElementById('pie-chart'),{
     type:'doughnut',
     data:{labels:keys,datasets:[{data:vals,
-      backgroundColor:keys.map(function(_,i){return PCOLORS[i%PCOLORS.length];}),
+      backgroundColor:keys.map(function(k,i){return CATCOLOR[k]||PCOLORS[i%PCOLORS.length];}),
       borderWidth:2,borderColor:'#fff',hoverOffset:6}]},
     options:{responsive:true,maintainAspectRatio:true,cutout:'62%',
       plugins:{legend:{display:false},
@@ -960,7 +960,7 @@ function renderPieDash(){
   });
   document.getElementById('pie-leg').innerHTML=keys.slice(0,7).map(function(k,i){
     return '<div class="pie-item">'+
-      '<div class="pie-left"><div class="pie-dot" style="background:'+PCOLORS[i%PCOLORS.length]+'"></div>'+
+      '<div class="pie-left"><div class="pie-dot" style="background:'+(CATCOLOR[k]||PCOLORS[i%PCOLORS.length])+'"></div>'+
         '<span class="pie-name">'+esc(k)+'</span></div>'+
       '<span class="pie-pct" style="color:'+PCOLORS[i%PCOLORS.length]+'">'+(total?Math.round(vals[i]/total*100):0)+'%</span>'+
     '</div>';
@@ -970,7 +970,7 @@ function renderPieDash(){
 /* =========================================================
    DASHBOARD — PROGRESS (아코디언)
    ========================================================= */
-function toggleProg(el) {
+window.toggleProg = function toggleProg(el) {
   var uid = el.dataset.uid;
   var detail = document.getElementById(uid);
   var arr = document.getElementById(uid + '-arr');
