@@ -1266,8 +1266,12 @@ function renderAssetPie(ai,ae,as2){
    SETTINGS
    ========================================================= */
 function renderSettings(){
-  var el=document.getElementById('settings-content');
-  if(!el) return;
+  var oldEl=document.getElementById('settings-content');
+  if(!oldEl) return;
+  /* 이벤트 중복 등록 방지: 기존 요소를 새 요소로 교체 */
+  var el=document.createElement('div');
+  el.id='settings-content';
+  oldEl.parentNode.replaceChild(el, oldEl);
 
   var tcolors={expense:'#DC2626',income:'#059669',saving:'#7C3AED',repay:'#BE185D'};
   var tbg={expense:'#FEF2F2',income:'#ECFDF5',saving:'#F5F3FF',repay:'#FCE7F3'};
