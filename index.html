@@ -1652,7 +1652,29 @@ function renderSettings(){
       try {
         var wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
         var ws = wb.Sheets[wb.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false});
+        /* header:1 로 전체를 배열로 읽은 뒤 헤더 행 자동 탐지 */
+        var rawRows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false, header:1});
+        /* 헤더 행 찾기 (날짜/가맹점/금액 키워드 포함 행) */
+        var headerIdx = -1;
+        var keywords = ['이용일','거래일','승인일','가맹점','이용하신곳','이용금액','국내이용금액','금액'];
+        for(var ri=0; ri<Math.min(rawRows.length, 20); ri++){
+          var rowVals = rawRows[ri].map(function(v){ return String(v||''); });
+          var matchCount = keywords.filter(function(kw){
+            return rowVals.some(function(v){ return v.replace(/[\s\n\r]/g,'').indexOf(kw.replace(/[\s\n\r]/g,'')) >= 0; });
+          }).length;
+          if(matchCount >= 2){ headerIdx = ri; break; }
+        }
+        var rows;
+        if(headerIdx >= 0){
+          var headers = rawRows[headerIdx].map(function(v){ return String(v||'').trim(); });
+          rows = rawRows.slice(headerIdx+1).map(function(row){
+            var obj = {};
+            headers.forEach(function(h,i){ obj[h] = row[i] !== undefined ? row[i] : ''; });
+            return obj;
+          });
+        } else {
+          rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false});
+        }
         renderCardPreview(rows, cardType, file.name);
       } catch(err){
         showToast('파일을 읽을 수 없습니다: ' + err.message);
@@ -1675,20 +1697,20 @@ var CARD_MAP = {
     approval:['승인번호','승인번호(참고)']
   },
   kb: {
-    date:    ['거래일','이용일','거래일시','이용일시'],
+    date:    ['이용일','거래일','이용일시','거래일시'],
     merchant:['이용하신곳','가맹점명','상호명'],
-    amount:  ['국내금액','이용금액','금액','거래금액'],
+    amount:  ['국내이용금액', '국내금액','이용금액','금액','거래금액'],
     approval:['승인번호']
   },
   lotte: {
     date:    ['이용일','승인일자','거래일','이용일자'],
-    merchant:['이용가맹점','가맹점명','가맹점','상호'],
+    merchant:['이용가맹점','가맹점명','가맹점','상호','이용하신곳'],
     amount:  ['이용금액','금액','승인금액','거래금액'],
     approval:['승인번호','카드승인번호']
   },
   hyundai: {
     date:    ['이용일','승인일','거래일','이용일시'],
-    merchant:['이용가맹점','가맹점명','가맹점','상호명'],
+    merchant:['이용가맹점','가맹점명','가맹점','상호명','이용하신곳'],
     amount:  ['이용금액','금액','승인금액','거래금액'],
     approval:['승인번호']
   }
@@ -1696,9 +1718,12 @@ var CARD_MAP = {
 
 function findCol(row, candidates) {
   var keys = Object.keys(row);
+  /* 줄바꿈/공백 제거 후 비교 */
+  var cleanKeys = keys.map(function(k){ return k.replace(/[\s\n\r]/g,''); });
   for(var i=0; i<candidates.length; i++){
-    for(var j=0; j<keys.length; j++){
-      if(keys[j].replace(/\s/g,'').indexOf(candidates[i].replace(/\s/g,'')) >= 0) return keys[j];
+    var cleanCand = candidates[i].replace(/[\s\n\r]/g,'');
+    for(var j=0; j<cleanKeys.length; j++){
+      if(cleanKeys[j].indexOf(cleanCand) >= 0 || cleanCand.indexOf(cleanKeys[j]) >= 0) return keys[j];
     }
   }
   return null;
@@ -1706,7 +1731,9 @@ function findCol(row, candidates) {
 
 function parseAmount(val) {
   if(!val && val !== 0) return 0;
-  return parseInt(String(val).replace(/[^0-9]/g,'')) || 0;
+  var s = String(val).replace(/,/g,'').replace(/[^0-9.-]/g,'').trim();
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : Math.round(Math.abs(n));
 }
 
 function parseDate(val) {
@@ -1763,17 +1790,35 @@ function renderCardPreview(rows, cardType, fileName) {
   var map = CARD_MAP[cardType];
   if(!map){ showToast('지원하지 않는 카드사입니다'); return; }
 
-  /* 첫 번째 유효 행에서 컬럼 찾기 */
-  var sampleRow = rows.find(function(r){ return Object.keys(r).length > 2; }) || rows[0] || {};
-  var colDate     = findCol(sampleRow, map.date);
-  var colMerchant = findCol(sampleRow, map.merchant);
-  var colAmount   = findCol(sampleRow, map.amount);
-  var colApproval = findCol(sampleRow, map.approval);
-
+  /* 모든 행을 순회하며 헤더 행 자동 탐지 */
+  var colDate=null, colMerchant=null, colAmount=null, colApproval=null;
+  var dataStartIdx = 0;
+  for(var ri=0; ri<Math.min(rows.length, 15); ri++){
+    var r = rows[ri];
+    var d = findCol(r, map.date);
+    var m = findCol(r, map.merchant);
+    var a = findCol(r, map.amount);
+    if(d && m && a){
+      colDate=d; colMerchant=m; colAmount=a;
+      colApproval=findCol(r, map.approval);
+      dataStartIdx = ri+1;
+      break;
+    }
+  }
+  /* 헤더를 못 찾으면 첫 행으로 시도 */
+  if(!colDate || !colMerchant || !colAmount){
+    var sampleRow = rows.find(function(r){ return Object.keys(r).length > 2; }) || rows[0] || {};
+    colDate     = findCol(sampleRow, map.date);
+    colMerchant = findCol(sampleRow, map.merchant);
+    colAmount   = findCol(sampleRow, map.amount);
+    colApproval = findCol(sampleRow, map.approval);
+    dataStartIdx = 0;
+  }
   if(!colDate || !colMerchant || !colAmount){
     showToast('컬럼을 인식하지 못했습니다. 다른 엑셀 형식인지 확인해주세요');
     return;
   }
+  rows = rows.slice(dataStartIdx);
 
   /* 파싱 */
   ciParsedRows = [];
