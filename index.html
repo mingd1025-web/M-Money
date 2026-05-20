@@ -23,6 +23,31 @@
 }
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;display:flex;flex-direction:column}
 
+
+/* ── CARD IMPORT ── */
+.ci-card{background:linear-gradient(135deg,#1E2235,#2D3352);border-radius:var(--r);padding:16px;margin-bottom:14px;color:#fff}
+.ci-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ci-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.ci-sel{flex:1;min-width:120px;padding:8px 10px;border-radius:var(--rs);border:1.5px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:12px;font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
+.ci-sel option{background:#1E2235;color:#fff}
+.ci-file-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;background:linear-gradient(135deg,#4F46E5,#0D9488);border:none;border-radius:var(--rs);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.ci-file-input{display:none}
+.ci-preview{background:#fff;border-radius:var(--r);margin-top:12px;overflow:hidden;box-shadow:var(--sh)}
+.ci-preview-hd{padding:12px 16px;font-size:12px;font-weight:700;color:var(--txt2);border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between}
+.ci-table-wrap{overflow-x:auto;max-height:320px;overflow-y:auto}
+.ci-table{width:100%;border-collapse:collapse;font-size:12px}
+.ci-table th{padding:8px 10px;background:#F8FAFF;color:var(--txt2);font-weight:700;text-align:left;border-bottom:2px solid var(--bdr);white-space:nowrap;position:sticky;top:0;z-index:1}
+.ci-table td{padding:7px 10px;border-bottom:1px solid #F3F4F6;vertical-align:middle}
+.ci-table tr:hover td{background:#FAFBFF}
+.ci-table tr.dup td{background:#FEF2F2;color:#9CA3AF}
+.ci-dup-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:#FEE2E2;color:#DC2626;font-weight:700;white-space:nowrap}
+.ci-cat-sel{width:100%;padding:4px 6px;border-radius:4px;border:1.5px solid var(--bdr);font-size:11px;font-family:inherit;background:#fff;color:var(--txt);-webkit-appearance:none;appearance:none}
+.ci-actions{padding:12px 16px;border-top:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ci-info{font-size:12px;color:var(--txt2)}
+.ci-import-btn{padding:9px 20px;background:linear-gradient(135deg,#059669,#0D9488);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.ci-import-btn:disabled{opacity:.4;cursor:not-allowed}
+.ci-cancel-btn{padding:9px 14px;background:none;border:1.5px solid var(--bdr);border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--txt2)}
+
 /* ── LOGIN SCREEN ── */
 .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1E2235 0%,#2D3352 60%,#1E3A5F 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:24px;padding:32px}
 .login-screen.hidden{display:none}
@@ -1512,7 +1537,28 @@ function renderSettings(){
   });
   detHtml+='</div>';
 
-  el.innerHTML=fixHtml+catHtml+detHtml;
+  /* 카드내역 가져오기 섹션 HTML */
+  var importHtml =
+    '<div class="ci-card">' +
+      '<div class="ci-title">&#128449; 카드내역 가져오기</div>' +
+      '<div class="ci-row">' +
+        '<select class="ci-sel" id="ci-card-sel">' +
+          '<option value="">카드사 선택</option>' +
+          '<option value="shinhan">신한카드</option>' +
+          '<option value="kb">국민카드</option>' +
+          '<option value="lotte">롯데카드</option>' +
+          '<option value="hyundai">현대카드</option>' +
+        '</select>' +
+        '<label class="ci-file-btn">&#128193; 파일 선택<input class="ci-file-input" id="ci-file-input" type="file" accept=".xlsx,.xls,.csv"></label>' +
+      '</div>' +
+      '<div style="font-size:11px;opacity:.6;line-height:1.6">' +
+        '카드사 홈페이지 → 이용내역 → 엑셀 다운로드 후 업로드<br>' +
+        '지원: .xlsx / .xls / .csv' +
+      '</div>' +
+    '</div>' +
+    '<div id="ci-preview-wrap"></div>';
+
+  el.innerHTML = importHtml + fixHtml + catHtml + detHtml;
 
   el.addEventListener('click',function(e){
     var btn=e.target.closest('[data-action]');
@@ -1552,6 +1598,229 @@ function renderSettings(){
 
   var fab2=document.getElementById('fix-add-btn');
   if(fab2) fab2.addEventListener('click',function(){openFxModal(null);});
+
+  /* 카드 파일 업로드 이벤트 */
+  var ciFile = document.getElementById('ci-file-input');
+  if(ciFile) ciFile.addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var cardType = document.getElementById('ci-card-sel').value;
+    if(!cardType){ showToast('카드사를 먼저 선택해주세요'); this.value=''; return; }
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false});
+        renderCardPreview(rows, cardType, file.name);
+      } catch(err){
+        showToast('파일을 읽을 수 없습니다: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/* =========================================================
+   CARD IMPORT
+   ========================================================= */
+
+/* 카드사별 컬럼 매핑 */
+var CARD_MAP = {
+  shinhan: {
+    date:    ['이용일','거래일','승인일','이용일시','거래일시'],
+    merchant:['가맹점명','이용가맹점','상호명','가맹점'],
+    amount:  ['이용금액','금액','승인금액'],
+    approval:['승인번호','승인번호(참고)']
+  },
+  kb: {
+    date:    ['거래일','이용일','거래일시','이용일시'],
+    merchant:['이용하신곳','가맹점명','상호명'],
+    amount:  ['국내금액','이용금액','금액','거래금액'],
+    approval:['승인번호']
+  },
+  lotte: {
+    date:    ['이용일','승인일자','거래일','이용일자'],
+    merchant:['이용가맹점','가맹점명','가맹점','상호'],
+    amount:  ['이용금액','금액','승인금액','거래금액'],
+    approval:['승인번호','카드승인번호']
+  },
+  hyundai: {
+    date:    ['이용일','승인일','거래일','이용일시'],
+    merchant:['이용가맹점','가맹점명','가맹점','상호명'],
+    amount:  ['이용금액','금액','승인금액','거래금액'],
+    approval:['승인번호']
+  }
+};
+
+function findCol(row, candidates) {
+  var keys = Object.keys(row);
+  for(var i=0; i<candidates.length; i++){
+    for(var j=0; j<keys.length; j++){
+      if(keys[j].replace(/\s/g,'').indexOf(candidates[i].replace(/\s/g,'')) >= 0) return keys[j];
+    }
+  }
+  return null;
+}
+
+function parseAmount(val) {
+  if(!val && val !== 0) return 0;
+  return parseInt(String(val).replace(/[^0-9]/g,'')) || 0;
+}
+
+function parseDate(val) {
+  if(!val) return '';
+  var s = String(val).replace(/\./g,'-').replace(/\//g,'-').trim();
+  /* 날짜+시간 형태면 날짜만 */
+  s = s.split(' ')[0];
+  /* YYYYMMDD → YYYY-MM-DD */
+  if(/^\d{8}$/.test(s)) s = s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
+  /* YY-MM-DD → 20YY-MM-DD */
+  if(/^\d{2}-/.test(s)) s = '20'+s;
+  return s;
+}
+
+function isDuplicate(row) {
+  /* 같은 날짜 + 같은 금액 + 승인번호 일치 → 중복 */
+  return txns.some(function(t){
+    var sameDate = t.date === row.date;
+    var sameAmt  = t.amount === row.amount;
+    var sameAppr = row.approval && t.cardApproval && t.cardApproval === row.approval;
+    /* 승인번호 있으면 승인번호로 판단, 없으면 날짜+금액+가맹점 */
+    if(row.approval && t.cardApproval) return sameAppr;
+    return sameDate && sameAmt && (t.memo||'') === (row.merchant||'');
+  });
+}
+
+var ciParsedRows = [];
+
+function renderCardPreview(rows, cardType, fileName) {
+  var map = CARD_MAP[cardType];
+  if(!map){ showToast('지원하지 않는 카드사입니다'); return; }
+
+  /* 첫 번째 유효 행에서 컬럼 찾기 */
+  var sampleRow = rows.find(function(r){ return Object.keys(r).length > 2; }) || rows[0] || {};
+  var colDate     = findCol(sampleRow, map.date);
+  var colMerchant = findCol(sampleRow, map.merchant);
+  var colAmount   = findCol(sampleRow, map.amount);
+  var colApproval = findCol(sampleRow, map.approval);
+
+  if(!colDate || !colMerchant || !colAmount){
+    showToast('컬럼을 인식하지 못했습니다. 다른 엑셀 형식인지 확인해주세요');
+    return;
+  }
+
+  /* 파싱 */
+  ciParsedRows = [];
+  rows.forEach(function(r){
+    var amt = parseAmount(r[colAmount]);
+    if(!amt) return; /* 금액 없는 행 제외 (합계행 등) */
+    var date = parseDate(r[colDate]);
+    if(!date) return;
+    var approval = colApproval ? String(r[colApproval]||'').trim() : '';
+    ciParsedRows.push({
+      date:     date,
+      merchant: String(r[colMerchant]||'').trim(),
+      amount:   amt,
+      approval: approval,
+      category: cats.expense[0] || '유동지출',
+      dup:      false
+    });
+  });
+
+  /* 중복 체크 */
+  ciParsedRows.forEach(function(r){ r.dup = isDuplicate(r); });
+
+  var newCount  = ciParsedRows.filter(function(r){ return !r.dup; }).length;
+  var dupCount  = ciParsedRows.filter(function(r){ return r.dup; }).length;
+
+  /* 미리보기 테이블 렌더 */
+  var wrap = document.getElementById('ci-preview-wrap');
+  if(!wrap) return;
+
+  var catOptions = (cats.expense||[]).map(function(c){
+    return '<option value="'+esc(c)+'">'+esc(c)+'</option>';
+  }).join('');
+
+  var rows_html = ciParsedRows.map(function(r, i){
+    return '<tr class="'+(r.dup?'dup':'')+'">'+
+      '<td>'+esc(r.date)+'</td>'+
+      '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.merchant)+'">'+esc(r.merchant)+'</td>'+
+      '<td style="text-align:right;font-weight:700;color:var(--exp)">'+r.amount.toLocaleString()+'</td>'+
+      '<td style="min-width:90px">'+(r.dup
+        ? '<span class="ci-dup-badge">중복</span>'
+        : '<select class="ci-cat-sel" data-ci-idx="'+i+'">'+catOptions+'</select>'
+      )+'</td>'+
+      (colApproval ? '<td style="font-size:10px;color:var(--txt3)">'+esc(r.approval||'-')+'</td>' : '')+
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<div class="ci-preview">'+
+      '<div class="ci-preview-hd">'+
+        '<span>📋 '+esc(fileName)+' · 총 '+ciParsedRows.length+'건</span>'+
+        (dupCount ? '<span style="color:var(--exp);font-size:11px">중복 '+dupCount+'건 제외 예정</span>' : '')+
+      '</div>'+
+      '<div class="ci-table-wrap">'+
+        '<table class="ci-table">'+
+          '<thead><tr>'+
+            '<th>날짜</th><th>가맹점</th><th>금액</th><th>분류</th>'+
+            (colApproval ? '<th>승인번호</th>' : '')+
+          '</tr></thead>'+
+          '<tbody>'+rows_html+'</tbody>'+
+        '</table>'+
+      '</div>'+
+      '<div class="ci-actions">'+
+        '<span class="ci-info">새 내역 <b style="color:var(--inc)">'+newCount+'건</b> 가져옵니다'+(dupCount?' (중복 '+dupCount+'건 제외)':'')+'</span>'+
+        '<div style="display:flex;gap:8px">'+
+          '<button class="ci-cancel-btn" id="ci-cancel-btn">취소</button>'+
+          '<button class="ci-import-btn" id="ci-do-import-btn" '+(newCount===0?'disabled':'')+'>✅ '+newCount+'건 가져오기</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  /* 분류 변경 이벤트 */
+  wrap.querySelectorAll('.ci-cat-sel').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var idx = parseInt(this.dataset.ciIdx);
+      if(ciParsedRows[idx]) ciParsedRows[idx].category = this.value;
+    });
+  });
+
+  /* 취소 */
+  document.getElementById('ci-cancel-btn').addEventListener('click', function(){
+    wrap.innerHTML = '';
+    var fi = document.getElementById('ci-file-input');
+    if(fi) fi.value = '';
+    ciParsedRows = [];
+  });
+
+  /* 가져오기 실행 */
+  document.getElementById('ci-do-import-btn').addEventListener('click', function(){
+    var toAdd = ciParsedRows.filter(function(r){ return !r.dup; });
+    if(!toAdd.length){ showToast('가져올 내역이 없습니다'); return; }
+    toAdd.forEach(function(r){
+      txns.push({
+        id:          genId(),
+        type:        'expense',
+        category:    r.category,
+        detailCat:   '',
+        memo:        r.merchant,
+        amount:      r.amount,
+        date:        r.date,
+        cardApproval: r.approval || undefined
+      });
+    });
+    saveData();
+    wrap.innerHTML = '';
+    var fi = document.getElementById('ci-file-input');
+    if(fi) fi.value = '';
+    ciParsedRows = [];
+    renderAll();
+    showToast('✅ ' + toAdd.length + '건의 카드내역을 가져왔습니다!');
+    /* 내역 탭으로 이동 */
+    switchTab('transactions');
+  });
 }
 
 /* =========================================================
@@ -1795,5 +2064,6 @@ document.addEventListener('click',function(e){
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </body>
 </html>
