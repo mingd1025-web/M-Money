@@ -1558,7 +1558,34 @@ function renderSettings(){
     '</div>' +
     '<div id="ci-preview-wrap"></div>';
 
-  el.innerHTML = importHtml + fixHtml + catHtml + detHtml;
+  /* 가맹점 분류 기억 관리 UI */
+  var mem = loadMerchantMemory();
+  var memKeys = Object.keys(mem);
+  var memHtml = '<div class="card sgrp"><div class="sghd" style="background:#EEF2FF;justify-content:space-between">'+
+    '<div style="display:flex;align-items:center;gap:6px"><div class="sgdot" style="background:var(--acc)"></div>'+
+    '<span style="color:var(--acc)">&#129504; 가맹점 분류 기억 ('+memKeys.length+'개)</span></div>';
+  if(memKeys.length){
+    memHtml += '<button data-action="clearAllMem" style="background:var(--exp-bg);border:1px solid var(--exp-lt);color:var(--exp);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">전체삭제</button>';
+  }
+  memHtml += '</div>';
+  if(!memKeys.length){
+    memHtml += '<div style="padding:16px;text-align:center;font-size:13px;color:var(--txt3)">카드내역 가져오기 후 분류를 지정하면 자동으로 기억돼요</div>';
+  } else {
+    memKeys.forEach(function(merchant, i){
+      var cc = CATCOLOR[mem[merchant]]||'#6B7280';
+      var cb = CATBG[mem[merchant]]||'#F3F4F6';
+      memHtml += '<div class="srow">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(merchant)+'</div>'+
+          '<span class="tbadge" style="background:'+cb+';color:'+cc+'">'+esc(mem[merchant])+'</span>'+
+        '</div>'+
+        '<button class="bico del" data-action="delMem" data-merchant="'+esc(merchant)+'">&#128465;</button>'+
+      '</div>';
+    });
+  }
+  memHtml += '</div>';
+
+  el.innerHTML = importHtml + fixHtml + catHtml + detHtml + memHtml;
 
   el.addEventListener('click',function(e){
     var btn=e.target.closest('[data-action]');
@@ -1593,6 +1620,20 @@ function renderSettings(){
     else if(action==='addden'){
       var inp=document.getElementById('addinp-d-'+type);
       if(inp&&inp.value.trim()){if(!dcats[type])dcats[type]=[];dcats[type].push(inp.value.trim());inp.value='';saveData();renderSettings();}
+    }
+    else if(action==='delMem'){
+      var mem=loadMerchantMemory();
+      delete mem[btn.dataset.merchant];
+      saveMerchantMemory(mem);
+      renderSettings();
+      showToast('"'+btn.dataset.merchant+'" 기억을 삭제했습니다');
+    }
+    else if(action==='clearAllMem'){
+      if(confirm('가맹점 분류 기억을 모두 삭제하시겠습니까?')){
+        saveMerchantMemory({});
+        renderSettings();
+        showToast('가맹점 분류 기억을 모두 삭제했습니다');
+      }
     }
   });
 
@@ -1692,6 +1733,30 @@ function isDuplicate(row) {
   });
 }
 
+/* 가맹점 분류 기억 (localStorage) */
+var MM_KEY = 'hb_merchant_memory';
+function loadMerchantMemory() {
+  try { return JSON.parse(localStorage.getItem(MM_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveMerchantMemory(mem) {
+  try { localStorage.setItem(MM_KEY, JSON.stringify(mem)); } catch(e) {} 
+}
+function getMerchantCategory(merchant) {
+  var mem = loadMerchantMemory();
+  /* 정확히 일치하는 가맹점명 우선, 없으면 포함 관계 검색 */
+  if(mem[merchant]) return mem[merchant];
+  var keys = Object.keys(mem);
+  for(var i=0; i<keys.length; i++){
+    if(merchant.indexOf(keys[i]) >= 0 || keys[i].indexOf(merchant) >= 0) return mem[keys[i]];
+  }
+  return null;
+}
+function rememberMerchant(merchant, category) {
+  var mem = loadMerchantMemory();
+  mem[merchant] = category;
+  saveMerchantMemory(mem);
+}
+
 var ciParsedRows = [];
 
 function renderCardPreview(rows, cardType, fileName) {
@@ -1718,12 +1783,15 @@ function renderCardPreview(rows, cardType, fileName) {
     var date = parseDate(r[colDate]);
     if(!date) return;
     var approval = colApproval ? String(r[colApproval]||'').trim() : '';
+    var merchant = String(r[colMerchant]||'').trim();
+    var rememberedCat = getMerchantCategory(merchant);
     ciParsedRows.push({
       date:     date,
-      merchant: String(r[colMerchant]||'').trim(),
+      merchant: merchant,
       amount:   amt,
       approval: approval,
-      category: cats.expense[0] || '유동지출',
+      category: rememberedCat || cats.expense[0] || '유동지출',
+      remembered: !!rememberedCat,
       dup:      false
     });
   });
@@ -1742,15 +1810,22 @@ function renderCardPreview(rows, cardType, fileName) {
     return '<option value="'+esc(c)+'">'+esc(c)+'</option>';
   }).join('');
 
+  var rememberedCount = ciParsedRows.filter(function(r){ return !r.dup && r.remembered; }).length;
+
   var rows_html = ciParsedRows.map(function(r, i){
+    var memBadge = (!r.dup && r.remembered)
+      ? '<span style="font-size:9px;background:#EEF2FF;color:var(--acc);font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px">기억됨</span>'
+      : '';
+    var catSel = '<select class="ci-cat-sel" data-ci-idx="'+i+'">';
+    (cats.expense||[]).forEach(function(c){
+      catSel += '<option value="'+esc(c)+'"'+(c===r.category?' selected':'')+'>'+esc(c)+'</option>';
+    });
+    catSel += '</select>';
     return '<tr class="'+(r.dup?'dup':'')+'">'+
       '<td>'+esc(r.date)+'</td>'+
-      '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.merchant)+'">'+esc(r.merchant)+'</td>'+
+      '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.merchant)+'">'+esc(r.merchant)+memBadge+'</td>'+
       '<td style="text-align:right;font-weight:700;color:var(--exp)">'+r.amount.toLocaleString()+'</td>'+
-      '<td style="min-width:90px">'+(r.dup
-        ? '<span class="ci-dup-badge">중복</span>'
-        : '<select class="ci-cat-sel" data-ci-idx="'+i+'">'+catOptions+'</select>'
-      )+'</td>'+
+      '<td style="min-width:90px">'+(r.dup ? '<span class="ci-dup-badge">중복</span>' : catSel)+'</td>'+
       (colApproval ? '<td style="font-size:10px;color:var(--txt3)">'+esc(r.approval||'-')+'</td>' : '')+
     '</tr>';
   }).join('');
@@ -1759,7 +1834,10 @@ function renderCardPreview(rows, cardType, fileName) {
     '<div class="ci-preview">'+
       '<div class="ci-preview-hd">'+
         '<span>📋 '+esc(fileName)+' · 총 '+ciParsedRows.length+'건</span>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+        (rememberedCount ? '<span style="color:var(--acc);font-size:11px">🧠 '+rememberedCount+'건 자동분류</span>' : '')+
         (dupCount ? '<span style="color:var(--exp);font-size:11px">중복 '+dupCount+'건 제외 예정</span>' : '')+
+        '</div>'+
       '</div>'+
       '<div class="ci-table-wrap">'+
         '<table class="ci-table">'+
@@ -1779,11 +1857,25 @@ function renderCardPreview(rows, cardType, fileName) {
       '</div>'+
     '</div>';
 
-  /* 분류 변경 이벤트 */
+  /* 분류 변경 이벤트 — 변경 즉시 가맹점 기억 업데이트 */
   wrap.querySelectorAll('.ci-cat-sel').forEach(function(sel){
     sel.addEventListener('change', function(){
       var idx = parseInt(this.dataset.ciIdx);
-      if(ciParsedRows[idx]) ciParsedRows[idx].category = this.value;
+      if(ciParsedRows[idx]){
+        ciParsedRows[idx].category = this.value;
+        ciParsedRows[idx].remembered = true;
+        rememberMerchant(ciParsedRows[idx].merchant, this.value);
+        /* 같은 가맹점 다른 행도 동시 업데이트 */
+        var merchant = ciParsedRows[idx].merchant;
+        var newCat = this.value;
+        wrap.querySelectorAll('.ci-cat-sel').forEach(function(otherSel){
+          var otherIdx = parseInt(otherSel.dataset.ciIdx);
+          if(otherIdx !== idx && ciParsedRows[otherIdx] && ciParsedRows[otherIdx].merchant === merchant){
+            ciParsedRows[otherIdx].category = newCat;
+            otherSel.value = newCat;
+          }
+        });
+      }
     });
   });
 
@@ -1799,6 +1891,8 @@ function renderCardPreview(rows, cardType, fileName) {
   document.getElementById('ci-do-import-btn').addEventListener('click', function(){
     var toAdd = ciParsedRows.filter(function(r){ return !r.dup; });
     if(!toAdd.length){ showToast('가져올 내역이 없습니다'); return; }
+    /* 가맹점 분류 기억 저장 */
+    toAdd.forEach(function(r){ rememberMerchant(r.merchant, r.category); });
     toAdd.forEach(function(r){
       txns.push({
         id:          genId(),
