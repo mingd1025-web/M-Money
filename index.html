@@ -51,7 +51,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--txt)
 .srow[draggable]{cursor:grab}
 .srow[draggable]:active{cursor:grabbing}
 .srow.drag-over{background:#EEF2FF;border-top:2px solid var(--acc)}
-.drag-handle{color:var(--txt3);font-size:16px;cursor:grab;padding:0;flex-shrink:0;user-select:none;margin-right:2px}
+.drag-handle{color:var(--txt3);font-size:16px;cursor:grab;padding:0 2px;flex-shrink:0;user-select:none}
 
 /* ── LOGIN SCREEN ── */
 .login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1E2235 0%,#2D3352 60%,#1E3A5F 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:24px;padding:32px}
@@ -1000,28 +1000,32 @@ function renderPieDash(){
   if(detEtc>0) detTop.push(['기타',{amt:detEtc,cat:'기타'}]);
   var detLabels=detTop.map(function(e){return e[0];});
   var detVals=detTop.map(function(e){return e[1].amt;});
-  var detColors=detTop.map(function(e,i){return CATCOLOR[e[1].cat]||PCOLORS[i%PCOLORS.length];});
+  var DET_COLORS = [
+    '#059669','#2563EB','#DC2626','#7C3AED','#D97706',
+    '#0891B2','#EC4899','#65A30D','#EA580C','#0D9488',
+    '#BE185D','#CA8A04','#7C2D12','#1D4ED8','#16A34A',
+    '#9333EA','#B45309','#0369A1','#C026D3','#047857'
+  ];
+  var detColors=detTop.map(function(e,i){return DET_COLORS[i%DET_COLORS.length];});
   var detTotal=detVals.reduce(function(a,b){return a+b;},0);
 
   if(pieChart){pieChart.destroy();pieChart=null;}
 
   wrap.innerHTML=
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 16px 14px">'+
-      /* 대분류 */
       '<div>'+
-        '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:8px;text-align:center">대분류</div>'+
-        '<div style="position:relative;width:100%;padding-bottom:100%">'+
+        '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:6px;text-align:center">대분류</div>'+
+        '<div style="position:relative;width:80%;margin:0 auto;padding-bottom:80%">'+
           '<canvas id="pie-chart-cat" style="position:absolute;inset:0"></canvas>'+
         '</div>'+
-        '<div id="pie-leg-cat" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>'+
+        '<div id="pie-leg-cat" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>'+
       '</div>'+
-      /* 세분류 */
       '<div>'+
-        '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:8px;text-align:center">세분류</div>'+
-        '<div style="position:relative;width:100%;padding-bottom:100%">'+
+        '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:6px;text-align:center">세분류</div>'+
+        '<div style="position:relative;width:80%;margin:0 auto;padding-bottom:80%">'+
           '<canvas id="pie-chart-det" style="position:absolute;inset:0"></canvas>'+
         '</div>'+
-        '<div id="pie-leg-det" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>'+
+        '<div id="pie-leg-det" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>'+
       '</div>'+
     '</div>';
 
@@ -1123,22 +1127,28 @@ document.addEventListener('drop', function(e) {
   var moved = list.splice(dragSrc.idx, 1)[0];
   list.splice(destIdx, 0, moved);
   saveData();
-  /* 드롭 후 현재 열린 아코디언 상태 기억 후 복원 */
-  var openBodies = [];
-  document.querySelectorAll('.sacc-body').forEach(function(b, i){
-    if(b.style.maxHeight && b.style.maxHeight !== '0px') openBodies.push(i);
+  /* 드롭 후 열린 아코디언 상태 + 스크롤 유지 */
+  var openKeys = [];
+  document.querySelectorAll('.sacc-body').forEach(function(b){
+    if(b.style.maxHeight && b.style.maxHeight !== '0px'){
+      var hd = b.previousElementSibling;
+      if(hd) openKeys.push(hd.textContent.trim().slice(0,10));
+    }
   });
-  var scrollY = document.querySelector('.main') ? document.querySelector('.main').scrollTop : 0;
+  var scrollY = window.scrollY || document.documentElement.scrollTop;
   renderSettings();
-  /* 열려있던 섹션 복원 */
-  document.querySelectorAll('.sacc-body').forEach(function(b, i){
-    if(openBodies.indexOf(i) >= 0){
+  /* 헤더 텍스트로 매칭해서 복원 */
+  document.querySelectorAll('.sacc-body').forEach(function(b){
+    var hd = b.previousElementSibling;
+    if(!hd) return;
+    var key = hd.textContent.trim().slice(0,10);
+    if(openKeys.some(function(k){ return k === key; })){
       b.style.maxHeight = b.scrollHeight + 2000 + 'px';
-      var arr = b.previousElementSibling && b.previousElementSibling.querySelector('.sghd-arr');
+      var arr = hd.querySelector('.sghd-arr');
       if(arr) arr.style.transform = 'rotate(0deg)';
     }
   });
-  if(document.querySelector('.main')) document.querySelector('.main').scrollTop = scrollY;
+  window.scrollTo(0, scrollY);
   dragSrc = null;
 });
 
@@ -1666,11 +1676,11 @@ function renderSettings(){
       var cb=CATBG[c]||tbg[type];
       catHtml+='<div class="srow drag-row" draggable="true"'+
         ' data-drag-type="'+type+'" data-drag-idx="'+i+'" data-drag-list="cat">'+
-        '<span class="drag-handle">&#8597;</span>'+
         '<span class="tbadge" style="background:'+cb+';color:'+cc+'">'+esc(c)+'</span>'+
         '<div class="sacts">'+
           '<button class="bico" data-action="rencat" data-type="'+type+'" data-idx="'+i+'">&#9998;</button>'+
           '<button class="bico del" data-action="delcat" data-type="'+type+'" data-idx="'+i+'" data-name="'+esc(c)+'">&#128465;</button>'+
+          '<span class="drag-handle" title="드래그하여 순서 변경">&#8597;</span>'+
         '</div>'+
       '</div>';
     });
@@ -1697,11 +1707,11 @@ function renderSettings(){
     dlist.forEach(function(c,i){
       detHtml+='<div class="srow drag-row" draggable="true"'+
         ' data-drag-type="'+type+'" data-drag-idx="'+i+'" data-drag-list="det">'+
-        '<span class="drag-handle">&#8597;</span>'+
-        '<span style="font-size:13px;font-weight:500">'+esc(c)+'</span>'+
+        '<span style="font-size:13px;font-weight:500;flex:1">'+esc(c)+'</span>'+
         '<div class="sacts">'+
           '<button class="bico" data-action="renden" data-type="'+type+'" data-idx="'+i+'">&#9998;</button>'+
           '<button class="bico del" data-action="delden" data-type="'+type+'" data-idx="'+i+'" data-name="'+esc(c)+'">&#128465;</button>'+
+          '<span class="drag-handle" title="드래그하여 순서 변경">&#8597;</span>'+
         '</div>'+
       '</div>';
     });
