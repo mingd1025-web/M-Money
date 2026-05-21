@@ -725,7 +725,8 @@ function startRealtimeListener() {
         fixedList = d.fixed     || [];
         debtTotal = d.debtTotal || 0;
         saveLocalData();
-        renderAll();
+        /* 드래그 중이면 renderAll 스킵 (아코디언 보호) */
+        if(!isDragging) renderAll();
         setSyncStatus('ok','동기화됨');
       } else {
         /* 첫 사용자 — 로컬 데이터를 Firestore로 마이그레이션 */
@@ -883,7 +884,7 @@ function renderAll(){
   renderTxns();
   renderFixedBanner();
   renderAssets();
-  renderSettings();
+  if(!isDragging) renderSettings();
 }
 
 function updateLabel(){
@@ -1081,10 +1082,12 @@ window.toggleCiCard = function toggleCiCard(cardEl) {
    DRAG REORDER for category lists (이벤트 위임 방식)
    ========================================================= */
 var dragSrc = null;
+var isDragging = false;
 
 document.addEventListener('dragstart', function(e) {
   var row = e.target.closest('.drag-row');
   if(!row) return;
+  isDragging = true;
   dragSrc = {
     type: row.dataset.dragType,
     idx:  parseInt(row.dataset.dragIdx),
@@ -1099,6 +1102,7 @@ document.addEventListener('dragend', function(e) {
   if(row) row.style.opacity = '';
   document.querySelectorAll('.drag-over').forEach(function(el){ el.classList.remove('drag-over'); });
   dragSrc = null;
+  setTimeout(function(){ isDragging = false; }, 300);
 });
 
 document.addEventListener('dragover', function(e) {
