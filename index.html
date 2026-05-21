@@ -1015,14 +1015,14 @@ function renderPieDash(){
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 16px 14px">'+
       '<div>'+
         '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:6px;text-align:center">대분류</div>'+
-        '<div style="position:relative;width:80%;margin:0 auto;padding-bottom:80%">'+
+        '<div style="position:relative;width:60%;margin:0 auto;padding-bottom:60%">'+
           '<canvas id="pie-chart-cat" style="position:absolute;inset:0"></canvas>'+
         '</div>'+
         '<div id="pie-leg-cat" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>'+
       '</div>'+
       '<div>'+
         '<div style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.06em;margin-bottom:6px;text-align:center">세분류</div>'+
-        '<div style="position:relative;width:80%;margin:0 auto;padding-bottom:80%">'+
+        '<div style="position:relative;width:60%;margin:0 auto;padding-bottom:60%">'+
           '<canvas id="pie-chart-det" style="position:absolute;inset:0"></canvas>'+
         '</div>'+
         '<div id="pie-leg-det" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>'+
@@ -1123,32 +1123,30 @@ document.addEventListener('drop', function(e) {
   var destIdx  = parseInt(row.dataset.dragIdx);
   var destList = row.dataset.dragList;
   if(dragSrc.type !== destType || dragSrc.list !== destList || dragSrc.idx === destIdx) return;
+
+  /* 데이터 배열만 업데이트 */
   var list = destList === 'cat' ? cats[destType] : dcats[destType];
   var moved = list.splice(dragSrc.idx, 1)[0];
   list.splice(destIdx, 0, moved);
   saveData();
-  /* 드롭 후 열린 아코디언 상태 + 스크롤 유지 */
-  var openKeys = [];
-  document.querySelectorAll('.sacc-body').forEach(function(b){
-    if(b.style.maxHeight && b.style.maxHeight !== '0px'){
-      var hd = b.previousElementSibling;
-      if(hd) openKeys.push(hd.textContent.trim().slice(0,10));
-    }
-  });
-  var scrollY = window.scrollY || document.documentElement.scrollTop;
-  renderSettings();
-  /* 헤더 텍스트로 매칭해서 복원 */
-  document.querySelectorAll('.sacc-body').forEach(function(b){
-    var hd = b.previousElementSibling;
-    if(!hd) return;
-    var key = hd.textContent.trim().slice(0,10);
-    if(openKeys.some(function(k){ return k === key; })){
-      b.style.maxHeight = b.scrollHeight + 2000 + 'px';
-      var arr = hd.querySelector('.sghd-arr');
-      if(arr) arr.style.transform = 'rotate(0deg)';
-    }
-  });
-  window.scrollTo(0, scrollY);
+
+  /* renderSettings 호출 없이 DOM 직접 조작 */
+  var parent = row.parentNode;
+  var allRows = Array.from(parent.querySelectorAll('.drag-row[data-drag-type="'+destType+'"][data-drag-list="'+destList+'"]'));
+  var srcRow = allRows[dragSrc.idx];
+  if(!srcRow) { dragSrc = null; return; }
+
+  /* 드래그한 행을 목적지 앞/뒤로 이동 */
+  if(dragSrc.idx < destIdx) {
+    row.parentNode.insertBefore(srcRow, row.nextSibling);
+  } else {
+    row.parentNode.insertBefore(srcRow, row);
+  }
+
+  /* data-drag-idx 재번호 매기기 */
+  parent.querySelectorAll('.drag-row[data-drag-type="'+destType+'"][data-drag-list="'+destList+'"]')
+    .forEach(function(r, i){ r.dataset.dragIdx = i; });
+
   dragSrc = null;
 });
 
