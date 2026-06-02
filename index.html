@@ -1876,26 +1876,38 @@ function renderSettings(){
       try {
         var wb = XLSX.read(ev.target.result, {type:'array', cellDates:true});
         var ws = wb.Sheets[wb.SheetNames[0]];
-        /* header:1 로 전체를 배열로 읽은 뒤 헤더 행 자동 탐지 */
+        /* 전체를 2D 배열로 읽어서 헤더 행 자동 탐지 */
         var rawRows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false, header:1});
-        /* 헤더 행 찾기 (날짜/가맹점/금액 키워드 포함 행) */
+        var keywords = ['이용일','거래일','승인일','가맹점','이용하신곳','이용금액','국내이용금액','금액','가맹점명'];
         var headerIdx = -1;
-        var keywords = ['이용일','거래일','승인일','가맹점','이용하신곳','이용금액','국내이용금액','금액'];
         for(var ri=0; ri<Math.min(rawRows.length, 20); ri++){
-          var rowVals = rawRows[ri].map(function(v){ return String(v||''); });
+          var rowVals = rawRows[ri].map(function(v){ return String(v||'').replace(/[\s\n\r]/g,''); });
           var matchCount = keywords.filter(function(kw){
-            return rowVals.some(function(v){ return v.replace(/[\s\n\r]/g,'').indexOf(kw.replace(/[\s\n\r]/g,'')) >= 0; });
+            return rowVals.some(function(v){ return v.indexOf(kw) >= 0; });
           }).length;
           if(matchCount >= 2){ headerIdx = ri; break; }
         }
         var rows;
         if(headerIdx >= 0){
           var headers = rawRows[headerIdx].map(function(v){ return String(v||'').trim(); });
-          rows = rawRows.slice(headerIdx+1).map(function(row){
-            var obj = {};
-            headers.forEach(function(h,i){ obj[h] = row[i] !== undefined ? row[i] : ''; });
-            return obj;
-          });
+          /* 헤더가 row 0이면 데이터도 row 1부터 → slice(1)
+             헤더가 중간 행이면 그 다음 행부터 → slice(headerIdx+1)
+             단, 헤더 바로 다음 행이 실제 데이터인지 확인 후 결정 */
+          var dataFrom = headerIdx + 1;
+          rows = rawRows.slice(dataFrom)
+            .filter(function(row){
+              /* 완전 빈 행 제외 */
+              return row.some(function(v){ return String(v||'').trim() !== ''; });
+            })
+            .map(function(row){
+              var obj = {};
+              headers.forEach(function(h, i){ obj[h] = row[i] !== undefined ? String(row[i]) : ''; });
+              return obj;
+            })
+            .filter(function(obj){
+              /* 모든 값이 비어있는 행 제외 */
+              return Object.values(obj).some(function(v){ return String(v||'').trim() !== ''; });
+            });
         } else {
           rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:false});
         }
@@ -1966,13 +1978,17 @@ function parseAmount(val) {
 
 function parseDate(val) {
   if(!val) return '';
-  var s = String(val).replace(/\./g,'-').replace(/\//g,'-').trim();
-  /* 날짜+시간 형태면 날짜만 */
+  var s = String(val).trim();
+  /* 날짜+시간 형태면 날짜만 (2026.05.30 12:28 또는 2026-05-30 12:28) */
   s = s.split(' ')[0];
+  /* . → - 변환 */
+  s = s.replace(/\./g,'-').replace(/\//g,'-');
   /* YYYYMMDD → YYYY-MM-DD */
   if(/^\d{8}$/.test(s)) s = s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8);
   /* YY-MM-DD → 20YY-MM-DD */
   if(/^\d{2}-/.test(s)) s = '20'+s;
+  /* 유효한 날짜 형식인지 확인 */
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
   return s;
 }
 
@@ -2025,36 +2041,18 @@ function renderCardPreview(rows, cardType, fileName) {
   var map = CARD_MAP[cardType];
   if(!map){ showToast('지원하지 않는 카드사입니다'); return; }
 
-  /* 모든 행을 순회하며 헤더 행 자동 탐지 */
-  var colDate=null, colMerchant=null, colAmount=null, colApproval=null;
-  var dataStartIdx = 0;
-  for(var ri=0; ri<Math.min(rows.length, 15); ri++){
-    var r = rows[ri];
-    var d = findCol(r, map.date);
-    var m = findCol(r, map.merchant);
-    var a = findCol(r, map.amount);
-    if(d && m && a){
-      colDate=d; colMerchant=m; colAmount=a;
-      colApproval=findCol(r, map.approval);
-      dataStartIdx = ri+1;
-      break;
-    }
-  }
-  /* 헤더를 못 찾으면 첫 행으로 시도 */
-  if(!colDate || !colMerchant || !colAmount){
-    var sampleRow = rows.find(function(r){ return Object.keys(r).length > 2; }) || rows[0] || {};
-    colDate     = findCol(sampleRow, map.date);
-    colMerchant = findCol(sampleRow, map.merchant);
-    colAmount   = findCol(sampleRow, map.amount);
-    colApproval = findCol(sampleRow, map.approval);
-    dataStartIdx = 0;
-  }
-  var colStatus = findCol(sampleRow || rows[0] || {}, map.status||[]);
+  /* 첫 번째 유효 행으로 컬럼 탐지 */
+  console.log('[CardImport] total rows:', rows.length, '| first row:', JSON.stringify(rows[0]));
+  var sampleRow = rows.find(function(r){ return Object.keys(r).length > 2; }) || rows[0] || {};
+  var colDate     = findCol(sampleRow, map.date);
+  var colMerchant = findCol(sampleRow, map.merchant);
+  var colAmount   = findCol(sampleRow, map.amount);
+  var colApproval = findCol(sampleRow, map.approval);
+  var colStatus   = findCol(sampleRow, map.status||[]);
   if(!colDate || !colMerchant || !colAmount){
     showToast('컬럼을 인식하지 못했습니다. 다른 엑셀 형식인지 확인해주세요');
     return;
   }
-  rows = rows.slice(dataStartIdx);
 
   /* 파싱 */
   ciParsedRows = [];
