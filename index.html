@@ -1889,7 +1889,13 @@ function renderSettings(){
         }
         var rows;
         if(headerIdx >= 0){
-          var headers = rawRows[headerIdx].map(function(v){ return String(v||'').trim(); });
+          var headers = rawRows[headerIdx].map(function(v){
+            return String(v||'')
+              .replace(/https?:\/\/[^\s]*/g, '') /* URL 제거 */
+              .replace(/[\n\r\t]/g, '')           /* 줄바꿈/탭 제거 */
+              .replace(/\s+/g, ' ')                /* 연속 공백 단일화 */
+              .trim();
+          });
           /* 헤더가 row 0이면 데이터도 row 1부터 → slice(1)
              헤더가 중간 행이면 그 다음 행부터 → slice(headerIdx+1)
              단, 헤더 바로 다음 행이 실제 데이터인지 확인 후 결정 */
@@ -1958,10 +1964,12 @@ var CARD_MAP = {
 
 function findCol(row, candidates) {
   var keys = Object.keys(row);
-  /* 줄바꿈/공백 제거 후 비교 */
-  var cleanKeys = keys.map(function(k){ return k.replace(/[\s\n\r]/g,''); });
+  /* URL, 줄바꿈, 공백 제거 후 비교 */
+  var cleanKeys = keys.map(function(k){
+    return k.replace(/https?:\/\/[^\s]*/g,'').replace(/[\s\n\r\t]/g,'');
+  });
   for(var i=0; i<candidates.length; i++){
-    var cleanCand = candidates[i].replace(/[\s\n\r]/g,'');
+    var cleanCand = candidates[i].replace(/[\s\n\r\t]/g,'');
     for(var j=0; j<cleanKeys.length; j++){
       if(cleanKeys[j].indexOf(cleanCand) >= 0 || cleanCand.indexOf(cleanKeys[j]) >= 0) return keys[j];
     }
