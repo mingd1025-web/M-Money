@@ -1915,28 +1915,32 @@ function renderSettings(){
 /* 카드사별 컬럼 매핑 */
 var CARD_MAP = {
   shinhan: {
-    date:    ['이용일','거래일','승인일','이용일시','거래일시'],
+    date:    ['거래일','이용일','승인일','이용일시','거래일시'],
     merchant:['가맹점명','이용가맹점','상호명','가맹점'],
-    amount:  ['이용금액','금액','승인금액'],
-    approval:['승인번호','승인번호(참고)']
+    amount:  ['금액','이용금액','승인금액'],
+    approval:['승인번호','승인번호(참고)'],
+    status:  ['매입구분','취소상태','상태','처리상태']
   },
   kb: {
     date:    ['이용일','거래일','이용일시','거래일시'],
     merchant:['이용하신곳','가맹점명','상호명'],
     amount:  ['국내이용금액', '국내금액','이용금액','금액','거래금액'],
-    approval:['승인번호']
+    approval:['승인번호'],
+    status:  ['상태']
   },
   lotte: {
     date:    ['이용일','승인일자','거래일','이용일자'],
     merchant:['이용가맹점','가맹점명','가맹점','상호','이용하신곳'],
     amount:  ['이용금액','금액','승인금액','거래금액'],
-    approval:['승인번호','카드승인번호']
+    approval:['승인번호','카드승인번호'],
+    status:  ['상태','처리상태','취소여부']
   },
   hyundai: {
     date:    ['이용일','승인일','거래일','이용일시'],
     merchant:['이용가맹점','가맹점명','가맹점','상호명','이용하신곳'],
     amount:  ['이용금액','금액','승인금액','거래금액'],
-    approval:['승인번호']
+    approval:['승인번호'],
+    status:  ['상태','처리상태','취소여부']
   }
 };
 
@@ -2045,6 +2049,7 @@ function renderCardPreview(rows, cardType, fileName) {
     colApproval = findCol(sampleRow, map.approval);
     dataStartIdx = 0;
   }
+  var colStatus = findCol(sampleRow || rows[0] || {}, map.status||[]);
   if(!colDate || !colMerchant || !colAmount){
     showToast('컬럼을 인식하지 못했습니다. 다른 엑셀 형식인지 확인해주세요');
     return;
@@ -2059,6 +2064,14 @@ function renderCardPreview(rows, cardType, fileName) {
     var date = parseDate(r[colDate]);
     if(!date) return;
     var approval = colApproval ? String(r[colApproval]||'').trim() : '';
+    /* 취소 건 제외: 상태 컬럼에 취소 포함 OR 금액이 음수 */
+    if(colStatus){
+      var statusVal = String(r[colStatus]||'').replace(/\s/g,'');
+      if(statusVal.indexOf('취소') >= 0) return;
+    }
+    /* 금액 음수인 경우도 취소로 처리 */
+    var rawAmtStr = String(r[colAmount]||'');
+    if(rawAmtStr.trim().startsWith('-')) return;
     var merchant = String(r[colMerchant]||'').trim();
     var rememberedMem = getMerchantMemory(merchant);
     ciParsedRows.push({
